@@ -1,24 +1,42 @@
 <html>
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://aframe.io/releases/0.8.0/aframe.min.js"></script>
     <script src="https://jeromeetienne.github.io/AR.js/aframe/build/aframe-ar.js"></script>
   </head>
   <body style="margin:0; overflow:hidden;">
+
     <a-scene embedded arjs>
       <a-assets>
+        <!-- Video with alpha: HEVC for Safari, WebM for Chrome/Android -->
         <video id="alpha" autoplay loop muted playsinline>
           <source src="https://rotato.netlify.app/alpha-demo/movie-hevc.mov" type='video/mp4; codecs="hvc1"'>
           <source src="https://rotato.netlify.app/alpha-demo/movie-webm.webm" type="video/webm">
         </video>
       </a-assets>
 
-      <a-marker-camera preset="hiro">
+      <a-marker preset="hiro">
+        <!-- Transparent video in AR space -->
         <a-video 
           src="#alpha" 
-          scale="5 5 1" 
+          scale="3 1.7 1" 
+          position="0 0 0"
           material="transparent:true; alphaTest:0.5">
         </a-video>
-      </a-marker-camera>
+
+        <!-- Text floating under the video in AR -->
+        <a-entity position="0 -1.2 0">
+          <a-text 
+            value="Web video with transparency demo. This text is HTML in AR" 
+            color="#FFFFFF" 
+            align="center"
+            width="4">
+          </a-text>
+        </a-entity>
+      </a-marker>
+
+      <a-entity camera></a-entity>
     </a-scene>
+
   </body>
 </html>
