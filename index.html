@@ -1,65 +1,24 @@
 <html>
   <head>
-    <link rel="stylesheet" type="text/css" href="styles.css" />
     <script src="https://aframe.io/releases/0.8.0/aframe.min.js"></script>
     <script src="https://jeromeetienne.github.io/AR.js/aframe/build/aframe-ar.js"></script>
   </head>
-  <body>
-    <a id="playButton" onclick="play('alpha')">
-      <div class="btn btn-primary play-overlay menu-overlay"></div>
-    </a>
-
+  <body style="margin:0; overflow:hidden;">
     <a-scene embedded arjs>
       <a-assets>
-        <!-- We'll pick the correct video source with JavaScript -->
-        <video id="alpha" autoplay loop muted playsinline></video>
+        <video id="alpha" autoplay loop muted playsinline>
+          <source src="https://rotato.netlify.app/alpha-demo/movie-hevc.mov" type='video/mp4; codecs="hvc1"'>
+          <source src="https://rotato.netlify.app/alpha-demo/movie-webm.webm" type="video/webm">
+        </video>
       </a-assets>
 
       <a-marker-camera preset="hiro">
-        <a-video
-          id="vid"
-          rotation="-62.584 -3.936 4.509"
-          scale="5 5 1"
-          src="#alpha"
-          material="transparent:true; alphaTest:0.5"
-        ></a-video>
+        <a-video 
+          src="#alpha" 
+          scale="5 5 1" 
+          material="transparent:true; alphaTest:0.5">
+        </a-video>
       </a-marker-camera>
     </a-scene>
-
-    <script>
-      // Detect if it's iOS
-      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-                  !window.MSStream;
-
-      // Get the video element
-      var alphaVideo = document.getElementById("alpha");
-
-      // Pick correct format
-      if (isIOS) {
-        alphaVideo.src = "assets/movie-hevc.mov"; // HEVC alpha for iOS
-      } else {
-        alphaVideo.src = "assets/movie-webm.webm"; // WebM alpha for Android/Chrome
-      }
-
-      // Play button logic
-      function play(id) {
-        var aVideoAsset = document.querySelector("#" + id);
-        aVideoAsset.play().catch(function (error) {
-          aVideoAsset.pause();
-          hideOrShow("playButton");
-        });
-        aVideoAsset.setAttribute("loop", "false");
-        hideOrShow("playButton");
-      }
-
-      function hideOrShow(id) {
-        var x = document.getElementById(id);
-        if (x.style.display === "none") {
-          x.style.display = "block";
-        } else {
-          x.style.display = "none";
-        }
-      }
-    </script>
   </body>
 </html>
