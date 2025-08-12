@@ -1,71 +1,46 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Alpha Video in WebAR</title>
-<style>
-  body { margin: 0; overflow: hidden; background: transparent; }
-  video { display: none; }
-</style>
-<script src="https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/webxr/ARButton.js"></script>
-</head>
-<body>
+<html>
+  <head>
+     <link rel="stylesheet" type="text/css" href="styles.css" />
+    <script src="https://aframe.io/releases/0.8.0/aframe.min.js"></script>
+    <script src="https://jeromeetienne.github.io/AR.js/aframe/build/aframe-ar.js"></script>
+    <!-- <script src="aframe-ar.js"></script> use this (v1.6) if this demo ever breaks-->
+  </head>
+  <body>
+    <a id="playButton" onclick="play('alpha')"><div class="btn btn-primary play-overlay menu-overlay"></div></a>
+    <a-scene >
+    <a-assets>
+        <video id="alpha" autoplay loop="true" src="assets/movie-hevc.mov" type='video/mp4; codecs="hvc1"'>></video>
+    </a-assets>
 
-<script>
-let scene, camera, renderer;
+    <!-- Using the asset management system. -->
+   
+    <a-marker-camera preset='hiro'>
+           <a-video id = "vid"  rotation =  "-62.584 -3.936 4.509"  scale="5 5 1" src="#alpha">
+      <video scale= "20 20 1" src="#source"></video></a-video>
+    </a-marker-camera>
+    </a-scene>
+  </body>
+  
+  <script>
+    
+    function play(id){
+      var aVideoAsset = document.querySelector('#' + id);
+      aVideoAsset.play().catch(function (error) {
+        aVideoAsset.pause();
+        hideOrShow("playButton");
 
-init();
-function init() {
-  scene = new THREE.Scene();
-
-  camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-  renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.xr.enabled = true;
-  document.body.appendChild(renderer.domElement);
-
-  document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
-
-  // Create video element with alpha
-  const video = document.createElement('video');
-  video.autoplay = true;
-  video.loop = true;
-  video.muted = true;
-  video.playsInline = true;
-
-  // Detect iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if (isIOS) {
-    video.src = 'assets/movie-hevc.mov'; // HEVC alpha
-    video.type = 'video/mp4; codecs="hvc1"';
+      });
+      aVideoAsset.setAttribute('loop', 'false');
+      hideOrShow('playButton');
+    }
+    function hideOrShow(id) {
+  var x = document.getElementById(id);
+  if (x.style.display === "none") {
+    x.style.display = "block";
   } else {
-    video.src = 'assets/movie-webm.webm'; // VP9 alpha
-    video.type = 'video/webm; codecs="vp9"';
+    x.style.display = "none";
   }
-
-  const texture = new THREE.VideoTexture(video);
-  texture.encoding = THREE.sRGBEncoding;
-  texture.format = THREE.RGBAFormat;
-
-  const geometry = new THREE.PlaneGeometry(1, 0.5625); // 16:9 ratio
-  const material = new THREE.MeshBasicMaterial({
-    map: texture,
-    transparent: true,
-    side: THREE.DoubleSide
-  });
-
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(0, 0, -2); // 2m in front
-  scene.add(mesh);
-
-  renderer.setAnimationLoop(() => {
-    renderer.render(scene, camera);
-  });
 }
-</script>
-
-</body>
-</html>
+ 
+  </script>
+</html> 
