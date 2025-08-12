@@ -1,46 +1,190 @@
+<!doctype html>
 <html>
-  <head>
-     <link rel="stylesheet" type="text/css" href="styles.css" />
-    <script src="https://aframe.io/releases/0.8.0/aframe.min.js"></script>
-    <script src="https://jeromeetienne.github.io/AR.js/aframe/build/aframe-ar.js"></script>
-    <!-- <script src="aframe-ar.js"></script> use this (v1.6) if this demo ever breaks-->
-  </head>
-  <body>
-    <a id="playButton" onclick="play('alpha')"><div class="btn btn-primary play-overlay menu-overlay"></div></a>
-    <a-scene >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <title>AR alpha video — iOS overlay fallback</title>
+
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://jeromeetienne.github.io/AR.js/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    html,body { margin:0; height:100%; background:black; overflow:hidden; }
+    #overlayVideo {
+      position: absolute;
+      pointer-events: none; /* clicks pass through if you want that */
+      transform-origin: center center;
+      will-change: transform, left, top, width, height;
+      display: none;
+      z-index: 9999;
+    }
+    #playButton {
+      position: absolute;
+      left: 20px; top: 20px;
+      z-index: 20000;
+      background: rgba(255,255,255,0.15);
+      padding: 10px; border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="playButton">Play</div>
+
+  <!-- DOM video used as overlay on iOS -->
+  <video id="overlayVideo" autoplay loop muted playsinline webkit-playsinline crossorigin="anonymous">
+    <source src="assets/movie-hevc.mov" type='video/mp4; codecs="hvc1"'>
+    <source src="assets/movie-webm.webm" type="video/webm">
+  </video>
+
+  <a-scene embedded arjs vr-mode-ui="enabled: false;" renderer="sortObjects: true;">
     <a-assets>
-        <video id="alpha" autoplay loop="true" src="assets/movie-hevc.mov" type='video/mp4; codecs="hvc1"'></video>
+      <!-- android/webgl asset (WebM recommended for Android) -->
+      <video id="alphaWebGL" autoplay loop muted playsinline crossorigin="anonymous">
+        <source src="assets/movie-webm.webm" type="video/webm">
+      </video>
     </a-assets>
 
-    <!-- Using the asset management system. -->
-   
-    <a-marker-camera preset='hiro'>
-           <a-video id = "vid"  rotation =  "-62.584 -3.936 4.509"  scale="5 5 1" src="#alpha">
-      <video scale= "20 20 1" src="#source"></video></a-video>
-    </a-marker-camera>
-    </a-scene>
-  </body>
-  
-  <script>
-    
-    function play(id){
-      var aVideoAsset = document.querySelector('#' + id);
-      aVideoAsset.play().catch(function (error) {
-        aVideoAsset.pause();
-        hideOrShow("playButton");
+    <!-- marker that anchors the content -->
+    <a-marker id="marker" preset="hiro">
+      <!-- WebGL video for non-iOS (Android/Chrome) -->
+      <a-video id="webglVideo"
+               src="#alphaWebGL"
+               width="1.6" height="0.9"
+               position="0 0 0"
+               rotation="-90 0 0"
+               material="transparent:true; alphaTest:0.5;">
+      </a-video>
+    </a-marker>
 
-      });
-      aVideoAsset.setAttribute('loop', 'false');
-      hideOrShow('playButton');
+    <a-entity camera id="camera"></a-entity>
+  </a-scene>
+
+<script>
+(function(){
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const overlayVid = document.getElementById('overlayVideo');
+  const webglVideo = document.getElementById('webglVideo');
+  const alphaWebGL = document.getElementById('alphaWebGL');
+  const marker = document.getElementById('marker');
+  const playButton = document.getElementById('playButton');
+
+  // autoplay may require user gesture — wire a play button
+  playButton.addEventListener('click', async () => {
+    try {
+      await overlayVid.play().catch(()=>{});
+      await alphaWebGL.play().catch(()=>{});
+      playButton.style.display = 'none';
+    } catch(e) {
+      console.warn('play failed', e);
     }
-    function hideOrShow(id) {
-  var x = document.getElementById(id);
-  if (x.style.display === "none") {
-    x.style.display = "block";
+  });
+
+  // If iOS: hide WebGL video, show overlay video and position it to marker
+  if (isIOS) {
+    // hide the <a-video> so WebGL doesn't attempt to show it (which would be opaque)
+    webglVideo.setAttribute('visible','false');
+
+    // display overlay video (native player in DOM, keeps alpha)
+    overlayVid.style.display = 'block';
+
+    // We track marker position each frame and project its corners to screen coordinates.
+    // Approach: get marker.object3D, find a plane size in world space, compute 4 plane corners,
+    // project to normalized device coords with camera, then convert to screen px and compute bounding rect.
+    const sceneEl = document.querySelector('a-scene');
+    const threeCamera = sceneEl.camera; // three.js camera
+    const renderer = sceneEl.renderer;
+
+    // size of the plane in world units (match a-video width/height)
+    const planeWidth = 1.6;
+    const planeHeight = 0.9;
+
+    function updateOverlay() {
+      if (!marker.object3D.visible) {
+        overlayVid.style.display = 'none';
+        return;
+      }
+      overlayVid.style.display = 'block';
+
+      // center world position of marker's child entity (we used webgl plane at local 0,0,0)
+      const obj = marker.object3D;
+      const worldPos = new THREE.Vector3();
+      obj.getWorldPosition(worldPos);
+
+      // get right and up vectors from marker's world matrix to compute planar corners
+      const worldQuat = new THREE.Quaternion();
+      obj.getWorldQuaternion(worldQuat);
+      const right = new THREE.Vector3(1,0,0).applyQuaternion(worldQuat).normalize();
+      const up = new THREE.Vector3(0,1,0).applyQuaternion(worldQuat).normalize();
+
+      // compute four corners of plane centered at worldPos (plane lying on marker local XY)
+      // scale plane by the object's scale too
+      const worldScale = obj.getWorldScale ? obj.getWorldScale(new THREE.Vector3()) : new THREE.Vector3(1,1,1);
+      const w = planeWidth * worldScale.x;
+      const h = planeHeight * worldScale.y;
+
+      const halfRight = right.clone().multiplyScalar(w/2);
+      const halfUp = up.clone().multiplyScalar(h/2);
+
+      const corners = [
+        worldPos.clone().sub(halfRight).add(halfUp), // top-left
+        worldPos.clone().add(halfRight).add(halfUp), // top-right
+        worldPos.clone().add(halfRight).sub(halfUp), // bottom-right
+        worldPos.clone().sub(halfRight).sub(halfUp)  // bottom-left
+      ];
+
+      // project corners to NDC then to screen px
+      const projected = corners.map(v => {
+        const p = v.clone().project(threeCamera);
+        return {
+          x: (p.x * 0.5 + 0.5) * renderer.domElement.clientWidth,
+          y: ( -p.y * 0.5 + 0.5) * renderer.domElement.clientHeight
+        };
+      });
+
+      // compute bounding rect
+      const xs = projected.map(p => p.x);
+      const ys = projected.map(p => p.y);
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+      // position and size overlay video to bounding rect
+      const left = minX;
+      const top = minY;
+      const width = Math.max(2, maxX - minX);
+      const height = Math.max(2, maxY - minY);
+
+      overlayVid.style.left = `${left}px`;
+      overlayVid.style.top = `${top}px`;
+      overlayVid.style.width = `${width}px`;
+      overlayVid.style.height = `${height}px`;
+
+      // rotate overlay to match marker orientation on screen (optional approximation)
+      // compute angle between top-left->top-right
+      const dx = projected[1].x - projected[0].x;
+      const dy = projected[1].y - projected[0].y;
+      const angle = Math.atan2(dy, dx) * (180/Math.PI);
+      overlayVid.style.transform = `rotate(${angle}deg) translate(-50%,-50%)`;
+      overlayVid.style.transformOrigin = 'center center';
+    }
+
+    // update each frame
+    function tick() {
+      updateOverlay();
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
   } else {
-    x.style.display = "none";
+    // Non-iOS: use WebGL video texture (WebM with alpha recommended)
+    overlayVid.style.display = 'none';
+    webglVideo.setAttribute('visible','true');
+    // attempt to play the WebM resource automatically
+    alphaWebGL.play().catch(()=>{ /* user gesture required in some cases */ });
   }
-}
- 
-  </script>
-</html> 
+
+})();
+</script>
+
+</body>
+</html>
